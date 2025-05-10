@@ -45,9 +45,9 @@ def load_data():
 # Function to create venue summary
 def create_venue_summary(df):
     # 1st and 2nd innings analysis
-    innings_runs = df.groupby(['venue', 'match_id', 'inning'])['total_runs'].sum().reset_index()
+    innings_runs = df.groupby(['venue', 'match_id', 'inning'])['batsman_runs'].sum().reset_index()
     innings_pivot = innings_runs.pivot(index=['venue', 'match_id'], columns='inning', 
-                                      values='total_runs').reset_index()
+                                      values='batsman_runs').reset_index()
     innings_pivot.columns = ['venue', 'match_id', 'innings_1_score', 'innings_2_score']
     
     innings_avg = innings_pivot.groupby('venue').agg(
