@@ -653,286 +653,414 @@ def show_player_performance(df, selected_venue, selected_team, opponent_team):
     st.markdown(f"Based on historical data at {selected_venue}, venue characteristics, and matchup vs {opponent_team}")
     
     # Filter to players with some meaningful data
-    filtered_recommendations = player_recommendations[(player_recommendations['matches_played'] >= 2) & 
-                                     (player_recommendations['total_runs'] >= 50)]
+    filtered_recommendations = player_recommendations[(player_recommendations['matches_played'] > 1)]
     
-    # Show top 6 players
-    top_players = filtered_recommendations.head(6)
-    
-    # Create columns for player cards
-    cols = st.columns(3)
-    
-    # Display player cards
-    for i, (_, player) in enumerate(top_players.iterrows()):
-        with cols[i % 3]:
-            st.markdown(f"""
-            <div class="metric-container">
-                <h3>{player['batter']}</h3>
-                <p>Matches: {int(player['matches_played'])}</p>
-                <p>Avg. Score: {player['avg_runs']:.1f}</p>
-                <p>Strike Rate: {player['strike_rate']:.1f}</p>
-                <p>Recent Form: {player['recent_avg']:.1f}</p>
-                <p>Confidence Score: {player['predicted_score']*100:.1f}%</p>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # Create visual representation of player performance
-    st.markdown("### 📊 Performance Comparison")
-    
-    # Filter for better visualization
-    vis_players = filtered_recommendations.head(8)
-    
-    # Radar chart data
-    categories = ['Venue Avg', 'Recent Form', 'vs Opponent']
-    
-    fig = go.Figure()
-    
-    for i, (_, player) in enumerate(vis_players.iterrows()):
-        fig.add_trace(go.Scatterpolar(
-            r=[player['norm_avg_runs']*100, player['norm_recent_avg']*100, player['norm_vs_team_avg']*100],
-            theta=categories,
-            fill='toself',
-            name=player['batter']
-        ))
-    
-    fig.update_layout(
-        polar=dict(
-            radialaxis=dict(
-                visible=True,
-                range=[0, 100]
-            )),
-        showlegend=True,
-        height=500,
-        title="Player Performance Factors"
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Show detailed stats in a table for the data-focused users
-    st.markdown("### 📋 Detailed Player Statistics")
-    
-    detailed_stats = filtered_recommendations[['batter', 'total_runs', 'avg_runs', 'strike_rate', 
-                                             'matches_played', 'recent_avg', 'vs_team_avg']].head(10)
-    
-    # Format the table
-    detailed_stats = detailed_stats.rename(columns={
-        'batter': 'Player',
-        'total_runs': 'Total Runs',
-        'avg_runs': 'Average',
-        'strike_rate': 'Strike Rate',
-        'matches_played': 'Matches',
-        'recent_avg': 'Recent Form',
-        'vs_team_avg': 'vs Opponent'
-    })
-    
-    # Format numeric columns
-    for col in ['Average', 'Strike Rate', 'Recent Form', 'vs Opponent']:
-        detailed_stats[col] = detailed_stats[col].round(2)
-    
-    st.dataframe(detailed_stats, use_container_width=True)
+    if not filtered_recommendations.empty:
+        # Display top 5 players
+        top_players = filtered_recommendations.head(5)
+        
+        # Create cards for top players
+        cols = st.columns(5)
+        for i, (_, player) in enumerate(top_players.iterrows()):
+            with cols[i]:
+                st.markdown(f"""
+                <div class='metric-container'>
+                    <h3>{player['batter']}</h3>
+                    <p><b>Performance Score:</b> {player['predicted_score']:.2f}</p>
+                    <p><b>Avg at Venue:</b> {player['avg_runs']:.1f}</p>
+                    <p><b>SR at Venue:</b> {player['strike_rate']:.1f}</p>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Create a bar chart to compare players
+        fig = px.bar(
+            top_players, 
+            x='batter', 
+            y='predicted_score',
+            color='predicted_score',
+            labels={'batter': 'Player', 'predicted_score': 'Performance Score'},
+            title=f"Top 5 Players for {selected_team} at {selected_venue}",
+            color_continuous_scale='Viridis'
+        )
+        
+        fig.update_layout(height=400, coloraxis_showscale=False)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Player vs Player Matchups
+        st.markdown("### ⚔️ Key Player Matchups")
+        
+        # Filter data for key bowlers from opponent team
+        bowling_df = venue_data[venue_data['bowling_team'] == opponent_team]
+        top_bowlers = bowling_df.groupby('bowler').agg(
+            wickets=('is_wicket', 'sum'),
+            balls_bowled=('ball', 'count')
+        ).reset_index()
+        
+        top_bowlers = top_bowlers[top_bowlers['balls_bowled'] > 24].sort_values('wickets', ascending=False).head(3)
+        
+        if not top_bowlers.empty:
+            # Get head-to-head stats
+            batters = filtered_recommendations['batter'].head(3).tolist()
+            bowlers = top_bowlers['bowler'].tolist()
+            
+            # Create matchup matrix
+            matchup_data = []
+            
+            for batter in batters:
+                for bowler in bowlers:
+                    h2h = venue_data[(venue_data['batter'] == batter) & (venue_data['bowler'] == bowler)]
+                    
+                    if not h2h.empty:
+                        runs = h2h['batsman_runs'].sum()
+                        balls = len(h2h)
+                        dismissals = h2h['is_wicket'].sum()
+                        sr = (runs / balls * 100) if balls > 0 else 0
+                        
+                        matchup_data.append({
+                            'Batter': batter,
+                            'Bowler': bowler,
+                            'Runs': runs,
+                            'Balls': balls,
+                            'Dismissals': dismissals,
+                            'Strike Rate': sr
+                        })
+            
+            if matchup_data:
+                matchup_df = pd.DataFrame(matchup_data)
+                
+                # Create heatmap
+                heatmap_df = matchup_df.pivot(index='Batter', columns='Bowler', values='Strike Rate')
+                
+                fig = px.imshow(
+                    heatmap_df,
+                    labels=dict(x="Bowler", y="Batter", color="Strike Rate"),
+                    x=heatmap_df.columns,
+                    y=heatmap_df.index,
+                    color_continuous_scale='RdYlGn',
+                    aspect="auto",
+                    title="Batter vs Bowler Strike Rate"
+                )
+                
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No head-to-head data available for key matchups at this venue")
+        else:
+            st.info(f"No bowling data for {opponent_team} at {selected_venue}")
+    else:
+        st.warning(f"Not enough player data for {selected_team} at {selected_venue}")
 
 # Prediction Center Page
-def show_prediction_center(df, selected_venue, selected_team, opponent_team):
+def show_prediction_center(df, selected_venue, selected_team, opponent_team, venue_profiles, stadium_reports):
     st.markdown(f"## 🔮 Prediction Center: {selected_venue}")
     
-    # Get venue characteristics
+    # Get venue data
     venue_data = df[df['venue'] == selected_venue]
     
     if venue_data.empty:
         st.error(f"No data available for {selected_venue}")
         return
     
-    try:
-        # Get key venue stats for predictions
-        pitch_type = venue_data['Pitch Type'].iloc[0]
-        bounce = venue_data['Bounce Level'].iloc[0]
-        spin_assist = venue_data['Spin Assistance'].iloc[0]
-        seam_move = venue_data['Seam Movement'].iloc[0]
-        avg_1st_inn = venue_data['Avg 1st Innings Score'].iloc[0]
-        avg_2nd_inn = venue_data['Avg 2nd Innings Score'].iloc[0]
-        bat_first_win = venue_data['Batting 1st Win %'].iloc[0]
-        chase_win = venue_data['Chasing Win %'].iloc[0]
-    except (IndexError, KeyError):
-        st.warning("Some venue characteristics are missing. Predictions may be less accurate.")
-        # Set defaults for missing values
-        pitch_type = "Unknown"
-        bounce = "Medium"
-        spin_assist = "Medium"
-        seam_move = "Medium"
-        avg_1st_inn = 160
-        avg_2nd_inn = 150
-        bat_first_win = 50
-        chase_win = 50
+    # Create tabs for different predictions
+    tab1, tab2 = st.tabs(["1st Innings Score Prediction", "Match Win Probability"])
     
-    st.markdown("### ⚖️ Toss Decision Recommendation")
-    
-    # Create decision logic for toss
-    if float(bat_first_win) > float(chase_win):
-        decision = "Bat First"
-        confidence = float(bat_first_win) - float(chase_win)
-        explanation = f"Teams batting first win {bat_first_win}% of matches at this venue compared to {chase_win}% for chasing teams."
-    else:
-        decision = "Bowl First"
-        confidence = float(chase_win) - float(bat_first_win)
-        explanation = f"Teams chasing win {chase_win}% of matches at this venue compared to {bat_first_win}% for teams batting first."
-    
-    # Present recommendation
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.markdown(f"""
-        <div class="metric-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px;">
-            <h1 style="font-size: 2.5rem; margin-bottom: 10px;">{decision}</h1>
-            <p style="font-size: 1.2rem;">Confidence: {confidence:.1f}%</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("<div class='metric-container' style='height: 200px;'>", unsafe_allow_html=True)
-        st.markdown("#### Recommendation Basis")
-        st.markdown(explanation)
-        st.markdown(f"**Pitch Characteristics:**")
-        st.markdown(f"- Type: {pitch_type}")  
-        st.markdown(f"- Bounce: {bounce}")
-        st.markdown(f"- Spin Assistance: {spin_assist}")
-        st.markdown(f"- Seam Movement: {seam_move}")
-        st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Score prediction
-    st.markdown("### 🎯 Predicted Score Range")
-    
-    # Simple variation based on teams' strength and venue stats
-    team_strength_factor = 1.0  # Could be calculated based on team rankings
-    
-    # Add some randomness to predictions
-    lower_bound = max(140, int(avg_1st_inn * 0.9 * team_strength_factor))
-    upper_bound = int(avg_1st_inn * 1.1 * team_strength_factor)
-    
-    # Present score prediction
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown(f"""
-        <div class="metric-container" style="height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <h3>First Innings Prediction</h3>
-            <h2>{lower_bound} - {upper_bound}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        # Calculate historical score distribution
-        scores = venue_data.groupby('match_id')['total_runs'].sum().reset_index()
+    with tab1:
+        st.markdown("### 1st Innings Score Prediction")
         
-        if not scores.empty:
-            # Create histogram of scores
-            fig = px.histogram(
-                scores, 
-                x='total_runs',
-                nbins=15,
-                title="Historical Score Distribution",
-                labels={"total_runs": "Total Runs"}
-            )
-            
-            # Add predicted range indicator
-            fig.add_vrect(
-                x0=lower_bound, 
-                x1=upper_bound,
-                fillcolor="green", 
-                opacity=0.15,
-                layer="below", 
-                line_width=0,
-            )
-            
-            fig.update_layout(height=150)
-            st.plotly_chart(fig, use_container_width=True)
+        # Get venue characteristics from the venue_profiles and stadium_reports
+        venue_info = venue_profiles[venue_profiles['venue'] == selected_venue]
+        stadium_info = stadium_reports[stadium_reports['venue'] == selected_venue]
+        
+        if venue_info.empty or stadium_info.empty:
+            st.warning("Missing venue data for prediction model")
         else:
-            st.markdown("<div class='metric-container' style='height: 150px;'>", unsafe_allow_html=True)
-            st.warning("Insufficient data to show score distribution")
-            st.markdown("</div>", unsafe_allow_html=True)
+            # Create a form for prediction input
+            with st.form("score_prediction_form"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Show the batting team
+                    st.markdown(f"**Batting Team**: {selected_team}")
+                    
+                    # Weather condition
+                    weather = st.selectbox(
+                        "Weather Condition",
+                        options=["Clear", "Cloudy", "Humid", "Rainy"],
+                        index=0
+                    )
+                    
+                    # Toss winner
+                    toss_winner = st.radio(
+                        "Toss Winner",
+                        options=[selected_team, opponent_team],
+                        horizontal=True
+                    )
+                
+                with col2:
+                    # Show the bowling team
+                    st.markdown(f"**Bowling Team**: {opponent_team}")
+                    
+                    # Dew factor
+                    dew_factor = st.slider(
+                        "Dew Factor (0-10)",
+                        min_value=0,
+                        max_value=10,
+                        value=5
+                    )
+                    
+                    # Pitch freshness
+                    pitch_freshness = st.select_slider(
+                        "Pitch Condition",
+                        options=["New", "Used Once", "Used Multiple Times"],
+                        value="Used Once"
+                    )
+                
+                submitted = st.form_submit_button("Predict Score")
+                
+                if submitted:
+                    # In a real model, we'd use these inputs with our RandomForestRegressor
+                    # Here we'll simulate a prediction based on venue averages with some randomness
+                    
+                    # Get the average first innings score for this venue
+                    avg_score = venue_data['Avg 1st Innings Score'].iloc[0]
+                    
+                    # Adjust based on inputs (simulating model behavior)
+                    # Weather adjustment
+                    weather_factor = {
+                        "Clear": 1.0,
+                        "Cloudy": 0.95,
+                        "Humid": 1.05,
+                        "Rainy": 0.9
+                    }
+                    
+                    # Dew adjustment
+                    dew_adjustment = 1.0 + (dew_factor - 5) * 0.01
+                    
+                    # Pitch freshness adjustment
+                    pitch_factor = {
+                        "New": 1.05,
+                        "Used Once": 1.0,
+                        "Used Multiple Times": 0.95
+                    }
+                    
+                    # Toss advantage
+                    toss_adjustment = 1.02 if toss_winner == selected_team else 0.98
+                    
+                    # Calculate predicted score with some randomness
+                    base_prediction = avg_score * weather_factor[weather] * dew_adjustment * pitch_factor[pitch_freshness] * toss_adjustment
+                    
+                    # Add some randomness (±15 runs)
+                    random_factor = np.random.normal(0, 5)
+                    final_prediction = int(base_prediction + random_factor)
+                    
+                    # Display the prediction
+                    st.markdown("<div class='highlight-box'>", unsafe_allow_html=True)
+                    st.markdown(f"### Predicted 1st Innings Score: {final_prediction}")
+                    
+                    # Add some insights
+                    if final_prediction > avg_score + 10:
+                        st.markdown(f"This is **above** the venue average of {int(avg_score)}")
+                    elif final_prediction < avg_score - 10:
+                        st.markdown(f"This is **below** the venue average of {int(avg_score)}")
+                    else:
+                        st.markdown(f"This is **close to** the venue average of {int(avg_score)}")
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
+                    # Show historical score distribution
+                    innings_scores = df[(df['venue'] == selected_venue) & 
+                                     (df['inning'] == 1)].groupby('match_id')['total_runs'].sum()
+                    
+                    fig = px.histogram(
+                        innings_scores,
+                        nbins=20,
+                        title=f"Historical 1st Innings Score Distribution at {selected_venue}",
+                        labels={'value': 'Score', 'count': 'Frequency'},
+                    )
+                    
+                    # Add a vertical line for the prediction
+                    fig.add_vline(x=final_prediction, line_dash="dash", line_color="red",
+                                annotation_text="Prediction", annotation_position="top right")
+                    
+                    fig.update_layout(height=400)
+                    st.plotly_chart(fig, use_container_width=True)
     
-    # Key players prediction
-    st.markdown("### 🔑 Key Player Matchups")
-    
-    # Create placeholders for player matchups (in a real app, these would come from ML models)
-    matchups = [
-        {"batter": "Virat Kohli", "bowler": "Jasprit Bumrah", "advantage": "Even", "explanation": "Historically tight contest with both having equal success"},
-        {"batter": "Rohit Sharma", "bowler": "Kagiso Rabada", "advantage": "Batter", "explanation": "Rohit averages 45.5 against Rabada at this venue"},
-        {"batter": "KL Rahul", "bowler": "Trent Boult", "advantage": "Bowler", "explanation": "Boult has dismissed Rahul 3 times in 4 matches here"}
-    ]
-    
-    for i, matchup in enumerate(matchups):
-        st.markdown(f"""
-        <div class="metric-container" style="margin-bottom: 10px;">
-            <h4>{matchup['batter']} vs {matchup['bowler']}</h4>
-            <p><strong>Advantage:</strong> {matchup['advantage']}</p>
-            <p>{matchup['explanation']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Strategy recommendations
-    st.markdown("### 📝 Strategy Recommendations")
-    
-    # Generate strategy recommendations based on venue characteristics
-    strategies = []
-    
-    if pitch_type == "Batting":
-        strategies.append("Play aggressive in powerplay - historically high scoring in first 6 overs")
-    elif pitch_type == "Bowling":
-        strategies.append("Conservative start, aim to keep wickets for death overs")
-    
-    if spin_assist == "High":
-        strategies.append("Consider playing 3 spinners, especially if bowling first")
-    
-    if seam_move == "High":
-        strategies.append("Use pace bowlers in the first 6 overs to maximize seam movement")
-    
-    if float(bat_first_win) > 60:
-        strategies.append("Strongly consider batting first and putting pressure through runs on board")
-    
-    # Add some generic strategies if the list is short
-    if len(strategies) < 3:
-        strategies.append("Target score of 10-15 runs above venue average when batting first")
-        strategies.append("Focus on taking wickets in middle overs (7-15) where run rate typically dips")
-    
-    for i, strategy in enumerate(strategies):
-        st.markdown(f"""
-        <div class="highlight-box" style="margin-bottom: 10px;">
-            <p>• {strategy}</p>
-        </div>
-        """, unsafe_allow_html=True)
+    with tab2:
+        st.markdown("### Match Win Probability")
+        
+        # Create a form for win probability prediction
+        with st.form("win_prediction_form"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                batting_first = st.radio(
+                    "Team Batting First",
+                    options=[selected_team, opponent_team],
+                    horizontal=True
+                )
+                
+                target_score = st.number_input(
+                    "Target Score (if known)",
+                    min_value=0,
+                    max_value=250,
+                    value=0,
+                    help="Leave as 0 if predicting before first innings"
+                )
+            
+            with col2:
+                toss_winner = st.radio(
+                    "Toss Winner",
+                    options=[selected_team, opponent_team],
+                    horizontal=True
+                )
+                
+                match_time = st.select_slider(
+                    "Match Time",
+                    options=["Day", "Day-Night", "Night"],
+                    value="Day-Night"
+                )
+            
+            submitted = st.form_submit_button("Calculate Win Probability")
+            
+            if submitted:
+                # In a real model, we'd use these inputs with our classifier
+                # Here we'll simulate win probabilities based on historical data
+                
+                # Get batting first and chasing win percentages
+                batting_first_win_pct = venue_data['Batting 1st Win %'].iloc[0]
+                chasing_win_pct = venue_data['Chasing Win %'].iloc[0]
+                
+                # Determine base win probability for team of interest (selected_team)
+                if batting_first == selected_team:
+                    base_prob = batting_first_win_pct / 100
+                else:
+                    base_prob = chasing_win_pct / 100
+                
+                # Toss factor (winning toss gives advantage)
+                toss_factor = 1.1 if toss_winner == selected_team else 0.9
+                
+                # Time of day factor
+                time_factor = {
+                    "Day": 1.0,
+                    "Day-Night": 0.9 if batting_first == selected_team else 1.1,  # Advantage to chasing team in day-night
+                    "Night": 0.85 if batting_first == selected_team else 1.15  # Stronger advantage to chasing at night
+                }
+                
+                # Calculate win probability
+                win_prob = base_prob * toss_factor * time_factor[match_time]
+                
+                # Adjust if we know the target score
+                if target_score > 0:
+                    avg_score = venue_data['Avg 1st Innings Score'].iloc[0]
+                    
+                    if batting_first == selected_team:
+                        # If selected team batted first, higher score = better chances
+                        score_factor = 1.0 + (target_score - avg_score) / avg_score * 0.5
+                    else:
+                        # If selected team is chasing, higher target = worse chances
+                        score_factor = 1.0 - (target_score - avg_score) / avg_score * 0.5
+                    
+                    win_prob *= score_factor
+                
+                # Ensure probability is between 0 and 1
+                win_prob = max(0.05, min(0.95, win_prob))
+                
+                # Display the prediction
+                st.markdown("<div class='highlight-box'>", unsafe_allow_html=True)
+                
+                # Create a gauge chart for win probability
+                fig = go.Figure(go.Indicator(
+                    mode = "gauge+number",
+                    value = win_prob * 100,
+                    domain = {'x': [0, 1], 'y': [0, 1]},
+                    title = {'text': f"{selected_team} Win Probability"},
+                    gauge = {
+                        'axis': {'range': [0, 100]},
+                        'bar': {'color': "rgba(50, 168, 82, 0.8)"},
+                        'steps': [
+                            {'range': [0, 25], 'color': "rgba(214, 39, 40, 0.6)"},
+                            {'range': [25, 50], 'color': "rgba(255, 127, 14, 0.6)"},
+                            {'range': [50, 75], 'color': "rgba(44, 160, 44, 0.6)"},
+                            {'range': [75, 100], 'color': "rgba(44, 160, 44, 0.8)"}
+                        ],
+                        'threshold': {
+                            'line': {'color': "red", 'width': 4},
+                            'thickness': 0.75,
+                            'value': 50
+                        }
+                    }
+                ))
+                
+                fig.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Add some insights
+                if win_prob > 0.6:
+                    st.markdown(f"{selected_team} is favored to win based on the conditions")
+                elif win_prob < 0.4:
+                    st.markdown(f"{opponent_team} is favored to win based on the conditions")
+                else:
+                    st.markdown("This looks like a closely contested match")
+                
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+                # Show historical win percentage by innings
+                first_innings_wins = len(venue_data[(venue_data['inning'] == 1) & 
+                                               (venue_data['batting_team'] == venue_data['winner'])]['match_id'].unique())
+                second_innings_wins = len(venue_data[(venue_data['inning'] == 2) & 
+                                                (venue_data['batting_team'] == venue_data['winner'])]['match_id'].unique())
+                
+                total_matches = len(venue_data['match_id'].unique())
+                
+                if total_matches > 0:
+                    first_innings_win_pct = first_innings_wins / total_matches * 100
+                    second_innings_win_pct = second_innings_wins / total_matches * 100
+                    
+                    # Create a bar chart for historical win percentages
+                    win_data = pd.DataFrame({
+                        'Batting': ['First Innings', 'Second Innings'],
+                        'Win %': [first_innings_win_pct, second_innings_win_pct]
+                    })
+                    
+                    fig = px.bar(
+                        win_data,
+                        x='Batting',
+                        y='Win %',
+                        color='Batting',
+                        title=f"Historical Win % by Innings at {selected_venue}",
+                        labels={'Batting': 'Batting Innings', 'Win %': 'Win Percentage (%)'},
+                        color_discrete_sequence=['rgb(26, 118, 255)', 'rgb(44, 160, 44)']
+                    )
+                    
+                    fig.update_layout(height=400)
+                    st.plotly_chart(fig, use_container_width=True)
 
 def main():
     # Load data
     df, deliveries, matches, venue_profiles, stadium_reports = load_data()
     
-    # Process the data to handle missing column issues
-    if 'batting_team' not in df.columns and 'team1' in df.columns:
-        # Create batting_team and bowling_team columns if they don't exist
-        df['batting_team'] = df['team1']  # Placeholder, actual logic would be more complex
-        df['bowling_team'] = df['team2']  # Placeholder
-    
-    # Extract unique venues and teams
+    # Get unique venues and teams
     venues = df['venue'].dropna().unique().tolist()
-    
-    # Check if batting_team exists, otherwise use team1 and team2
-    if 'batting_team' in df.columns:
-        teams = df['batting_team'].dropna().unique().tolist()
-    else:
-        teams = list(set(df['team1'].dropna().tolist() + df['team2'].dropna().tolist()))
+    teams = df['batting_team'].dropna().unique().tolist()
     
     # Render header
     render_header()
     
-    # Render sidebar and get selected options
+    # Render sidebar
     analysis_type, selected_venue, selected_team, opponent_team, season_range = render_sidebar(venues, teams)
     
-    # Filter data based on season range (if needed)
+    # Filter data based on season range if it exists in the data
     if 'season' in df.columns:
-        df_filtered = df[(df['season'] >= season_range[0]) & (df['season'] <= season_range[1])]
+        # Convert season to numeric if it's not already
+        if df['season'].dtype == 'object':
+            df['season'] = pd.to_numeric(df['season'], errors='coerce')
+            
+        # Now filter
+        df_filtered = df[df['season'].between(season_range[0], season_range[1], inclusive='both')]
     else:
-        df_filtered = df  # Use all data if season column doesn't exist
+        df_filtered = df
     
-    # Show appropriate page based on selection
+    # Render selected analysis
     if analysis_type == "Venue Intelligence":
         show_venue_intelligence(df_filtered, selected_venue, season_range)
     elif analysis_type == "Team Strategy":
@@ -940,7 +1068,8 @@ def main():
     elif analysis_type == "Player Performance":
         show_player_performance(df_filtered, selected_venue, selected_team, opponent_team)
     elif analysis_type == "Prediction Center":
-        show_prediction_center(df_filtered, selected_venue, selected_team, opponent_team)
+        show_prediction_center(df_filtered, selected_venue, selected_team, opponent_team, venue_profiles, stadium_reports)
 
+# Run the app
 if __name__ == "__main__":
     main()
