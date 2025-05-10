@@ -178,19 +178,12 @@ def predict_batters(df, venue, opponent):
             # Create empty DataFrame with required columns
             vs_team_avg = pd.DataFrame(columns=['batter', 'bowling_team', 'vs_team_avg'])
     
-    # Merge all metrics - with error handling
-    try:
-        # Filter for the selected venue
+        # Merge all metrics
         merged = venue_stats[venue_stats['venue'] == venue].copy()
-        
-        # Only merge if dataframes exist and aren't empty
-        if not merged.empty and not recent_5_avg.empty:
-            merged = merged.merge(recent_5_avg, on='batter', how='left')
-        
-        # Only merge opponent data if it exists
-        if not merged.empty and not vs_team_avg.empty and opponent in vs_team_avg['bowling_team'].values:
-            matchup = vs_team_avg[vs_team_avg['bowling_team'] == opponent]
-            merged = merged.merge(matchup, on='batter', how='left')
+        merged = merged.merge(recent_5_avg, on='batter', how='left')
+    
+        matchup = vs_team_avg[vs_team_avg['bowling_team'] == opponent]
+        merged = merged.merge(matchup, on='batter', how='left')
         
         # Fill NA values
         merged.fillna(0, inplace=True)
