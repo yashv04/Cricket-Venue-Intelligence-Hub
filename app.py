@@ -76,7 +76,7 @@ st.markdown("""
 # Load data function
 @st.cache_data
 def load_data():
-    deliveries = pd.read_csv('deliveries_till_2024.csv')
+    deliveries = pd.read_csv('deliveries_2024 compressed.csv')
     matches = pd.read_csv('matches_2024 compressed.csv')
     venue_profiles = pd.read_csv('venue_profiles.csv')
     stadium_reports = pd.read_csv('Stadium_Reports.csv')
