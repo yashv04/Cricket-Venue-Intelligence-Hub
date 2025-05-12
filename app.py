@@ -566,40 +566,39 @@ if data_loaded:
                                                 'vs_team_avg', 'strike_rate', 'predicted_score']]
                                     .head(10))
                         
-                        # Visualize top 5
+                        
                        
-                        # Visualize top 5
+    # Visualize top 5
 
-                        # Select top 5 batters including the required normalized columns
-                        top5 = top_batters.sort_values('predicted_score', ascending=False).head(5).copy()
+    # Select top 5 batters including the required normalized columns
+    top5 = top_batters.sort_values('predicted_score', ascending=False).head(5).copy()
 
-                        # Ensure required columns exist
-                        for col in ['norm_avg_runs', 'norm_recent_avg', 'norm_vs_team_avg']:
-                            if col not in top5.columns:
-                            top5[col] = 0
+    # Ensure required columns exist
+    for col in ['norm_avg_runs', 'norm_recent_avg', 'norm_vs_team_avg']:
+        if col not in top5.columns:
+        top5[col] = 0
 
-                        fig = px.bar(top5, x='batter', y='predicted_score', title=f"Top 5 Predicted Performers at {pred_venue} vs {opponent}",
-                        color='predicted_score', text_auto='.2f')
+        fig = px.bar(top5, x='batter', y='predicted_score', title=f"Top 5 Predicted Performers at {pred_venue} vs {opponent}", color='predicted_score', text_auto='.2f')
 
-                        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
 
                         
-                        # Factor contribution chart
-                        factor_df = pd.DataFrame({
+        # Factor contribution chart
+        factor_df = pd.DataFrame({
                             'Batter': top5['batter'],
                             'Venue History': top5['norm_avg_runs'] * 0.4,
                             'Recent Form': top5['norm_recent_avg'] * 0.3,
                             'vs Opponent': top5['norm_vs_team_avg'] * 0.3
                         })
                         
-                        factor_df_melted = pd.melt(factor_df, id_vars=['Batter'], 
+        factor_df_melted = pd.melt(factor_df, id_vars=['Batter'], 
                                                 var_name='Factor', value_name='Contribution')
                         
-                        fig = px.bar(factor_df_melted, x='Batter', y='Contribution', color='Factor',
-                                    title="Factor Contribution to Prediction Score", barmode='stack')
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.warning("Not enough data to make predictions for this venue and opponent.")
+        fig = px.bar(factor_df_melted, x='Batter', y='Contribution', color='Factor',
+        title="Factor Contribution to Prediction Score", barmode='stack')
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Not enough data to make predictions for this venue and opponent.")
         
         with tab2:
             st.subheader("Match Strategy Recommendations")
