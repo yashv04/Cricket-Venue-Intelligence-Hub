@@ -572,7 +572,7 @@ if data_loaded:
 
                         # Ensure required columns exist
                         for col in ['norm_avg_runs', 'norm_recent_avg', 'norm_vs_team_avg']:
-                            if col not in top5.columns:
+                           if col not in top5.columns:
                                 top5[col] = 0
 
                                 # Plot top 5 predicted performers
@@ -596,8 +596,8 @@ if data_loaded:
                                              title="Factor Contribution to Prediction Score", barmode='stack')
                                 st.plotly_chart(fig, use_container_width=True)
                        
-                  else:
-                       st.warning("Not enough data to make predictions for this venue and opponent.")
+                           else:
+                               st.warning("Not enough data to make predictions for this venue and opponent.")
         
         with tab2:
             st.subheader("Match Strategy Recommendations")
