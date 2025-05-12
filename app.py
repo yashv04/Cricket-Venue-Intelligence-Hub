@@ -20,7 +20,7 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     deliveries = pd.read_csv('deliveries_2024 compressed.csv')
-    matches = pd.read_csv('matches_till_2024.csv')
+    matches = pd.read_csv('matches_2024_updated.csv')
     venue_profiles = pd.read_csv('venue_profiles.csv')
     stadium_reports = pd.read_csv('Stadium_Reports.csv')
     
@@ -32,7 +32,22 @@ def load_data():
     df = deliveries.merge(matches, on='match_id')
     df = df.merge(venue_profiles, on='venue', how='outer', suffixes=('', '_venue'))
     df = df.merge(stadium_reports, on='venue', how='outer', suffixes=('', '_stadium'))
-    
+
+    venue_mapping = {
+    'Bharat Ratna Shri Atal Bihari Vajpayee Ekana Cricket Stadium, Lucknow' : 'BRSABV Ekana Cricket Stadium',
+    'Ekana Cricket Stadium, Lucknow' : 'BRSABV Ekana Cricket Stadium',
+    'Dr DY Patil Sports Academy' : 'DY Patil Stadium',
+    'M. A. Chidambaram (Chepauk)' : 'MA Chidambaram Stadium',
+    'M.Chinnaswamy Stadium' : 'M. Chinnaswamy Stadium',
+    'MCA Stadium' : 'Maharashtra Cricket Association Stadium',
+    'Narendra Modi Stadium, Ahemdabad' : 'Narendra Modi Stadium',
+    'Narendra Modi Stadium, Ahmedabad' : 'Narendra Modi Stadium',
+    'Punjab CA Stadium, Mohali' : 'Punjab Cricket Association Stadium',
+    'Rajiv Gandhi International Stadium' : 'Rajiv Gandhi International  Stadium',
+    'Rajiv Gandhi Stadium' : 'Rajiv Gandhi International  Stadium',
+    'Sawai Mansingh Stadium, Jaipur' : 'Sawai Mansingh Stadium',
+}
+    df['venue'] = df['venue'].replace(venue_mapping) 
     # Filter innings
     df = df[df['inning'].isin([1, 2])]
     
