@@ -579,7 +579,7 @@ if data_loaded:
                                 fig = px.bar(top5, x='batter', y='predicted_score',
                                              title=f"Top 5 Predicted Performers at {pred_venue} vs {opponent}",
                                              color='predicted_score', text_auto='.2f')
-                                             st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, use_container_width=True)
 
                                 # Factor contribution chart
                                 factor_df = pd.DataFrame({
