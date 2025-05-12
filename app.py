@@ -552,7 +552,7 @@ if data_loaded:
                                     .head(10))
                         
                         # Visualize top 5
-                        top5 = top_batters.head(5)
+                       
                         # Select top 5 batters including the required normalized columns
                         top5 = top_batters.sort_values('predicted_score', ascending=False).head(5).copy()
 
