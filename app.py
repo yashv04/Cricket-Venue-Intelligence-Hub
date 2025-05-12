@@ -573,8 +573,8 @@ if data_loaded:
 
                         # Ensure required columns exist
                         for col in ['norm_avg_runs', 'norm_recent_avg', 'norm_vs_team_avg']:
-                        if col not in top5.columns:
-                        top5[col] = 0
+                          if col not in top5.columns:
+                          top5[col] = 0
 
                         fig = px.bar(top5, x='batter', y='predicted_score', 
                                     title=f"Top 5 Predicted Performers at {pred_venue} vs {opponent}",
