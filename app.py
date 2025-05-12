@@ -568,18 +568,22 @@ if data_loaded:
                         
                         # Visualize top 5
                        
-                        # Select top 5 batters including the required normalized columns
-                        top5 = top_batters.sort_values('predicted_score', ascending=False).head(5).copy()
+                        # Visualize top 5
 
-                        # Ensure required columns exist
-                        for col in ['norm_avg_runs', 'norm_recent_avg', 'norm_vs_team_avg']:
-                          if col not in top5.columns:
-                          top5[col] = 0
+# Select top 5 batters including the required normalized columns
+top5 = top_batters.sort_values('predicted_score', ascending=False).head(5).copy()
 
-                        fig = px.bar(top5, x='batter', y='predicted_score', 
-                                    title=f"Top 5 Predicted Performers at {pred_venue} vs {opponent}",
-                                    color='predicted_score', text_auto='.2f')
-                        st.plotly_chart(fig, use_container_width=True)
+# Ensure required columns exist
+for col in ['norm_avg_runs', 'norm_recent_avg', 'norm_vs_team_avg']:
+    if col not in top5.columns:
+        top5[col] = 0
+
+fig = px.bar(top5, x='batter', y='predicted_score', 
+             title=f"Top 5 Predicted Performers at {pred_venue} vs {opponent}",
+             color='predicted_score', text_auto='.2f')
+
+st.plotly_chart(fig, use_container_width=True)
+
                         
                         # Factor contribution chart
                         factor_df = pd.DataFrame({
